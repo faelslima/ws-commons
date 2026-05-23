@@ -1,0 +1,90 @@
+name: CI/CD — ws-commons
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Biblioteca compartilhada — ciclo de vida:
+#   1. CI      : compila e testa em todo push / PR
+#   2. Publish : publica no GitHub Packages (apenas merge em main)
+#
+# Secrets necessários:
+#   GH_DEPLOY_TOKEN — PAT com escopo "workflow" para disparar builds downstream
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  JAVA_VERSION: '21'
+
+jobs:
+  # ── 1. Build & Test ─────────────────────────────────────────────────────────
+  ci:
+    name: 🔨 Build & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Build & Test
+        run: mvn --batch-mode clean package
+
+      - name: Resumo do build
+        if: always()
+        run: |
+          echo "### 🔨 Build ws-commons" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resultado:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
+  # ── 2. Publicar no GitHub Packages ──────────────────────────────────────────
+  publish:
+    name: 📦 Publish to GitHub Packages
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }} + Maven settings (GitHub Packages)
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Publicar pacote
+        run: mvn --batch-mode deploy -DskipTests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Resumo da publicação
+        run: |
+          echo "### 📦 Publicação ws-commons" >> $GITHUB_STEP_SUMMARY
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "- **Versão publicada:** \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registro:** GitHub Packages" >> $GITHUB_STEP_SUMMARY
