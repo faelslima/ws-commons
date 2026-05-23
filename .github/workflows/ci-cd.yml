@@ -78,18 +78,9 @@ jobs:
 
       - name: Publicar pacote
         run: mvn --batch-mode deploy -DskipTests
-        continue-on-error: true
-        id: deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-
-      - name: Verificar resultado do deploy
-        run: |
-          if [ "${{ steps.deploy.outcome }}" == "failure" ]; then
-            echo "⚠️ Deploy falhou — provavelmente versão já publicada (409 Conflict)."
-            echo "   Isso é esperado quando não há bump de versão."
-          fi
 
       - name: Resumo da publicação
         run: |
