@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>br.eti.logos</groupId>
+    <artifactId>ws-commons</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>ws-commons</name>
+    <description>
+        Biblioteca compartilhada do sistema i12 — DTOs de domínio, exceções, constants
+        e utilitários comuns aos 8 microsserviços (ws-security, ws-ganhar, ws-consolidar,
+        ws-discipular, ws-enviar, ws-eventos, ws-g12, ws-payments).
+
+        Importada como dependência peer (jar) pelos serviços downstream para eliminar
+        duplicação. Não depende de Spring Boot Web/Security — apenas spring-context
+        (MessageSource), jackson, commons-lang3 e Lombok.
+
+        Entidades JPA NÃO entram aqui — cada serviço mantém seu próprio mapeamento
+        para evitar acoplamento de schema (vide i12Decisions.md, Fase 2).
+    </description>
+
+    <!-- Publicação no GitHub Packages — alinhado com o pattern do ws-security-client -->
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages — ws-commons</name>
+            <url>https://maven.pkg.github.com/${env.GITHUB_REPOSITORY}</url>
+        </repository>
+    </distributionManagement>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <spring-boot.version>3.4.1</spring-boot.version>
+        <lombok.version>1.18.36</lombok.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- MessageSource para i18n nas exceptions -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <!-- Bean Validation API (jakarta.validation.constraints) — usado em DTOs -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+        <!-- Jackson para serialização nos Utils + ObjectMapper -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

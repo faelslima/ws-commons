@@ -1,0 +1,17 @@
+package br.eti.logos.commons.exceptions;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ErrorResponse {
+    private String errorCode;
+    private String message;
+    private String field;
+    private Object fieldValue;
+}
