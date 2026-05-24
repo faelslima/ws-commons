@@ -76,6 +76,38 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
+      - name: Delete existing SNAPSHOT from GitHub Packages (if any)
+        continue-on-error: true
+        run: |
+          PACKAGE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Current version: $PACKAGE_VERSION"
+          if [[ "$PACKAGE_VERSION" == *SNAPSHOT* ]]; then
+            echo "SNAPSHOT detected — checking for existing version to delete..."
+            VERSIONS=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/users/faelslima/packages/maven/br.eti.logos.ws-commons/versions")
+            VERSION_ID=$(echo "$VERSIONS" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for v in data:
+              if v.get('name','') == '$PACKAGE_VERSION':
+                  print(v['id'])
+                  break
+          " 2>/dev/null || true)
+            if [ -n "$VERSION_ID" ]; then
+              echo "Found existing version id=$VERSION_ID. Deleting..."
+              curl -s -X DELETE \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/users/faelslima/packages/maven/br.eti.logos.ws-commons/versions/$VERSION_ID"
+              echo "Deleted. Will re-publish fresh."
+            else
+              echo "No existing version found — first publish."
+            fi
+          fi
+        env:
+          TOKEN: ${{ secrets.GH_DEPLOY_TOKEN }}
+
       - name: Publicar pacote
         run: mvn --batch-mode deploy -DskipTests
         env:
