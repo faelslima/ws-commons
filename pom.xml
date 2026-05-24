@@ -6,7 +6,7 @@
 
     <groupId>br.eti.logos</groupId>
     <artifactId>ws-commons</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>ws-commons</name>
@@ -59,6 +59,18 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
+        </dependency>
+        <!-- Redis (optional) — usada na AbstractRedisConfig base -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Spring Data Commons (optional) — PageImpl para PageJacksonModule -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-commons</artifactId>
+            <optional>true</optional>
         </dependency>
         <!-- Bean Validation API (jakarta.validation.constraints) — usado em DTOs -->
         <dependency>
