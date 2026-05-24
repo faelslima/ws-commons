@@ -6,7 +6,7 @@
 
     <groupId>br.eti.logos</groupId>
     <artifactId>ws-commons</artifactId>
-    <version>1.2.0</version>
+    <version>1.3-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>ws-commons</name>
