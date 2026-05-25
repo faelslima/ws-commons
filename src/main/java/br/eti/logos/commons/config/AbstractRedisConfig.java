@@ -1,6 +1,7 @@
 package br.eti.logos.commons.config;
 
 import br.eti.logos.commons.utils.Utils;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
@@ -115,10 +116,13 @@ public abstract class AbstractRedisConfig {
      */
     protected PolymorphicTypeValidator buildPolymorphicTypeValidator() {
         return BasicPolymorphicTypeValidator.builder()
+                .allowIfBaseType(Object.class)
                 .allowIfSubType("br.eti.logos.")
                 .allowIfSubType("java.util.")
                 .allowIfSubType("java.time.")
                 .allowIfSubType("java.lang.")
+                .allowIfSubType("java.math.")
+                .allowIfSubType("[L")  // arrays
                 .allowIfSubType("org.springframework.data.domain.")
                 .build();
     }
@@ -185,7 +189,11 @@ public abstract class AbstractRedisConfig {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.registerModule(PageJacksonModule.create());
         configureObjectMapper(objectMapper);
-        objectMapper.activateDefaultTyping(buildPolymorphicTypeValidator(), ObjectMapper.DefaultTyping.NON_FINAL);
+        objectMapper.activateDefaultTyping(
+                buildPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.EVERYTHING,
+                JsonTypeInfo.As.PROPERTY
+        );
         return objectMapper;
     }
 
