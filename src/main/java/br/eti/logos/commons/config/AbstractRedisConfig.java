@@ -1,10 +1,7 @@
 package br.eti.logos.commons.config;
 
 import br.eti.logos.commons.utils.Utils;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,11 +30,13 @@ import java.util.stream.Collectors;
  * <p>
  * Fornece: ConnectionFactory, RedisTemplate, CacheManager e KeyGenerator.
  * <p>
+ * Usa {@link GenericJackson2JsonRedisSerializer} sem ObjectMapper customizado
+ * para typing — o serializer do Spring configura type info internamente de forma
+ * segura (exclui JsonNode, primitivos finais, etc.).
+ * <p>
  * Subclasses podem sobrescrever:
  * <ul>
- *   <li>{@link #buildPolymorphicTypeValidator()} — para customizar a whitelist de tipos</li>
- *   <li>{@link #configureObjectMapper(ObjectMapper)} — para registrar modulos extras</li>
- *   <li>{@link #buildKeyGenerator()} — para customizar a geração de chaves</li>
+ *   <li>{@link #buildKeyGenerator()} — para customizar a geracao de chaves</li>
  *   <li>{@link #getCacheTtl()} — para alterar o TTL de cache</li>
  * </ul>
  */
@@ -77,7 +76,7 @@ public abstract class AbstractRedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(createObjectMapper());
+        GenericJackson2JsonRedisSerializer serializer = createSerializer();
 
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(serializer);
@@ -90,7 +89,7 @@ public abstract class AbstractRedisConfig {
     @Bean
     @Primary
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(createObjectMapper());
+        GenericJackson2JsonRedisSerializer serializer = createSerializer();
 
         RedisCacheConfiguration cacheConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(getCacheTtl())
@@ -109,30 +108,6 @@ public abstract class AbstractRedisConfig {
     }
 
     // --- Hooks para subclasses ---
-
-    /**
-     * Constroi o PolymorphicTypeValidator. Default: whitelist segura.
-     * Subclasses podem sobrescrever para adicionar pacotes extras.
-     */
-    protected PolymorphicTypeValidator buildPolymorphicTypeValidator() {
-        return BasicPolymorphicTypeValidator.builder()
-                .allowIfBaseType(Object.class)
-                .allowIfSubType("br.eti.logos.")
-                .allowIfSubType("java.util.")
-                .allowIfSubType("java.time.")
-                .allowIfSubType("java.lang.")
-                .allowIfSubType("java.math.")
-                .allowIfSubType("[L")  // arrays
-                .allowIfSubType("org.springframework.data.domain.")
-                .build();
-    }
-
-    /**
-     * Hook para registrar modulos Jackson adicionais alem do JavaTimeModule e PageJacksonModule.
-     */
-    protected void configureObjectMapper(ObjectMapper objectMapper) {
-        // Default: nenhum modulo extra. Subclasses podem sobrescrever.
-    }
 
     /**
      * TTL do cache. Default: 1 dia em dev, 15 dias em prd.
@@ -184,17 +159,26 @@ public abstract class AbstractRedisConfig {
 
     // --- Internal ---
 
-    private ObjectMapper createObjectMapper() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.registerModule(PageJacksonModule.create());
-        configureObjectMapper(objectMapper);
-        objectMapper.activateDefaultTyping(
-                buildPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.EVERYTHING,
-                JsonTypeInfo.As.PROPERTY
-        );
-        return objectMapper;
+    /**
+     * Cria o serializer via builder do Spring Data Redis 3.4+.
+     * <p>
+     * O builder com defaultTyping(true) configura type info de forma segura:
+     * - Exclui JsonNode/TreeNode do type handling (evita erro de desserializacao)
+     * - Usa @class como property para type info
+     * - Lida corretamente com collections finais (ImmutableCollections)
+     * <p>
+     * O ObjectMapper passado registra JavaTimeModule e PageJacksonModule
+     * mas NAO configura typing (o builder faz isso de forma segura).
+     */
+    private GenericJackson2JsonRedisSerializer createSerializer() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.registerModule(PageJacksonModule.create());
+
+        return GenericJackson2JsonRedisSerializer.builder()
+                .objectMapper(mapper)
+                .defaultTyping(true)
+                .build();
     }
 
     protected String getEnvironment() {
