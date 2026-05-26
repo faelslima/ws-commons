@@ -2,7 +2,7 @@ package br.eti.logos.commons.config;
 
 import br.eti.logos.commons.utils.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.jsontype.impl.StdSubtypeResolver;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.interceptor.KeyGenerator;
@@ -17,7 +17,6 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
@@ -28,11 +27,9 @@ import java.util.stream.Collectors;
 /**
  * Configuracao base de Redis para todos os microsservicos i12.
  * <p>
- * Fornece: ConnectionFactory, RedisTemplate, CacheManager e KeyGenerator.
- * <p>
- * Usa {@link GenericJackson2JsonRedisSerializer} sem ObjectMapper customizado
- * para typing — o serializer do Spring configura type info internamente de forma
- * segura (exclui JsonNode, primitivos finais, etc.).
+ * Replica a configuracao original que funcionava em todos os services:
+ * - RedisTemplate: GenericJackson2JsonRedisSerializer (JSON com NON_FINAL)
+ * - CacheManager: serializer padrao do Spring (JDK Serialization)
  * <p>
  * Subclasses podem sobrescrever:
  * <ul>
@@ -76,7 +73,14 @@ public abstract class AbstractRedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        GenericJackson2JsonRedisSerializer serializer = createSerializer();
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setSubtypeResolver(new StdSubtypeResolver());
+        objectMapper.activateDefaultTyping(
+                objectMapper.getPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.NON_FINAL
+        );
+
+        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
 
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(serializer);
@@ -89,13 +93,9 @@ public abstract class AbstractRedisConfig {
     @Bean
     @Primary
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-        GenericJackson2JsonRedisSerializer serializer = createSerializer();
-
         RedisCacheConfiguration cacheConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(getCacheTtl())
-                .disableCachingNullValues()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
+                .disableCachingNullValues();
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(cacheConfig)
@@ -155,30 +155,6 @@ public abstract class AbstractRedisConfig {
             }
             return String.format("%s:%s", environment, result);
         };
-    }
-
-    // --- Internal ---
-
-    /**
-     * Cria o serializer via builder do Spring Data Redis 3.4+.
-     * <p>
-     * O builder com defaultTyping(true) configura type info de forma segura:
-     * - Exclui JsonNode/TreeNode do type handling (evita erro de desserializacao)
-     * - Usa @class como property para type info
-     * - Lida corretamente com collections finais (ImmutableCollections)
-     * <p>
-     * O ObjectMapper passado registra JavaTimeModule e PageJacksonModule
-     * mas NAO configura typing (o builder faz isso de forma segura).
-     */
-    private GenericJackson2JsonRedisSerializer createSerializer() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        mapper.registerModule(PageJacksonModule.create());
-
-        return GenericJackson2JsonRedisSerializer.builder()
-                .objectMapper(mapper)
-                .defaultTyping(true)
-                .build();
     }
 
     protected String getEnvironment() {
